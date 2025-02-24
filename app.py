@@ -143,17 +143,37 @@ def preprocess_input(data, month):
 def predict():
     data = request.get_json()
     month = data.get("month", 1)
+
+    print(month)
+
+    # Validate input
+    if "category_id" not in data:
+        return jsonify({"error": "Missing category_id"}), 400
+
+    predictions = []
+
+    # Initial prediction
     processed_data, error = preprocess_input(data, month)
     if error:
         return jsonify({"error": error}), 400
-    
-    # prediction = model.predict(processed_data).tolist()
-    # return jsonify({"prediction": prediction})
-    
+
     prediction = model.predict(processed_data)
     unscaled_prediction = inverse_transform_prediction(prediction, data["category_id"])
-    
-    return jsonify({"prediction": unscaled_prediction.tolist()})
+    predictions.append(unscaled_prediction.tolist())
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    # Predict for next 5 months
+    for i in range(5):
+        data['discounted_price'] = unscaled_prediction.tolist()
+        month = (month % 12) + 1  # Ensure month stays within 1-12
+        processed_data, error = preprocess_input(data, month)
+        if error:
+            return jsonify({"error": error}), 400
+
+        prediction = model.predict(processed_data)
+        unscaled_prediction = inverse_transform_prediction(prediction, data["category_id"])
+        predictions.append(unscaled_prediction.tolist())
+
+    return jsonify({"predictions": predictions})
+
+port = int(os.environ.get('PORT', 5000))
+app.run(host='0.0.0.0', port=port)
